@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hirass — Gestion des Dons</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2330;
+      --border: #30363d;
+      --accent: #e8a838;
+      --accent2: #c47c1a;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --blue: #58a6ff;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --text3: #6e7681;
+      --font-display: 'DM Serif Display', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --radius: 10px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── CONFIG OVERLAY ── */
+    #config-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #config-overlay.hidden { display: none; }
+    .config-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      width: 480px;
+      max-width: 95vw;
+      box-shadow: var(--shadow);
+    }
+    .config-box h1 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .config-box p { color: var(--text2); font-size: 14px; margin-bottom: 28px; }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .field input {
+      width: 100%; padding: 10px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: var(--font-body); font-size: 13px;
+    }
+    .field input:focus { outline: none; border-color: var(--accent); }
+    .btn-primary {
+      width: 100%; padding: 12px; background: var(--accent);
+      color: #000; font-weight: 600; font-family: var(--font-body);
+      font-size: 14px; border: none; border-radius: var(--radius);
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--accent2); }
+
+    /* ── LAYOUT ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+    }
+    .logo { font-family: var(--font-display); font-size: 22px; color: var(--accent); }
+    .logo span { color: var(--text2); font-size: 13px; font-family: var(--font-body); margin-left: 10px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .btn-icon {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text2); padding: 6px 14px; border-radius: 8px;
+      font-size: 12px; cursor: pointer; font-family: var(--font-body);
+      transition: all 0.2s;
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+    #status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    main { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab {
+      padding: 10px 20px; cursor: pointer; font-size: 14px; font-weight: 500;
+      color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── STATS GRID ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px;
+      transition: border-color 0.2s;
+    }
+    .stat-card:hover { border-color: var(--accent); }
+    .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); margin-bottom: 10px; }
+    .stat-value { font-family: var(--font-display); font-size: 32px; color: var(--text); line-height: 1; }
+    .stat-value.green { color: var(--green); }
+    .stat-value.yellow { color: var(--yellow); }
+    .stat-value.blue { color: var(--blue); }
+    .stat-sub { font-size: 12px; color: var(--text3); margin-top: 6px; }
+
+    /* ── FILTERS ── */
+    .filters {
+      display: flex; gap: 10px; align-items: center;
+      flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .filter-btn {
+      padding: 6px 16px; border-radius: 20px; font-size: 13px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text2); cursor: pointer; font-family: var(--font-body);
+      transition: all 0.2s;
+    }
+    .filter-btn:hover { border-color: var(--text2); color: var(--text); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+    .search-box {
+      margin-left: auto; display: flex; align-items: center; gap: 8px;
+    }
+    .search-box input {
+      padding: 7px 14px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: var(--font-body); font-size: 13px;
+      width: 220px;
+    }
+    .search-box input:focus { outline: none; border-color: var(--accent); }
+    .refresh-btn {
+      padding: 7px 14px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text2); cursor: pointer; font-size: 13px;
+      font-family: var(--font-body); transition: all 0.2s;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--surface2); }
+    th {
+      padding: 12px 16px; text-align: left; font-size: 11px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text3); white-space: nowrap;
+    }
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+    td { padding: 13px 16px; font-size: 13px; color: var(--text2); vertical-align: middle; }
+    td.mono { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text3); }
+    td.amount { font-weight: 600; color: var(--text); font-size: 14px; }
+    td .user-name { color: var(--text); font-weight: 500; }
+    td .user-phone { font-size: 11px; color: var(--text3); }
+
+    /* ── BADGES ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+    .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+    .badge-pending { background: rgba(210,153,34,0.15); color: var(--yellow); }
+    .badge-pending::before { background: var(--yellow); }
+    .badge-confirmed { background: rgba(63,185,80,0.15); color: var(--green); }
+    .badge-confirmed::before { background: var(--green); }
+    .badge-rejected { background: rgba(248,81,73,0.15); color: var(--red); }
+    .badge-rejected::before { background: var(--red); }
+    .badge-encours { background: rgba(88,166,255,0.15); color: var(--blue); }
+    .badge-encours::before { background: var(--blue); }
+    .badge-succes { background: rgba(63,185,80,0.15); color: var(--green); }
+    .badge-succes::before { background: var(--green); }
+    .badge-annule { background: rgba(248,81,73,0.15); color: var(--red); }
+    .badge-annule::before { background: var(--red); }
+
+    /* ── ACTIONS ── */
+    .actions { display: flex; gap: 6px; }
+    .btn-validate {
+      padding: 5px 12px; background: rgba(63,185,80,0.15); border: 1px solid rgba(63,185,80,0.3);
+      color: var(--green); border-radius: 6px; font-size: 12px; cursor: pointer;
+      font-family: var(--font-body); font-weight: 500; transition: all 0.2s;
+    }
+    .btn-validate:hover { background: rgba(63,185,80,0.3); }
+    .btn-reject {
+      padding: 5px 12px; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.25);
+      color: var(--red); border-radius: 6px; font-size: 12px; cursor: pointer;
+      font-family: var(--font-body); font-weight: 500; transition: all 0.2s;
+    }
+    .btn-reject:hover { background: rgba(248,81,73,0.25); }
+    .btn-disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── EMPTY / LOADING ── */
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--text3);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+    .loading-row td { text-align: center; padding: 40px; color: var(--text3); }
+    .spinner {
+      display: inline-block; width: 20px; height: 20px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── USERS TABLE ── */
+    .section-title {
+      font-family: var(--font-display); font-size: 20px; color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 20px;
+      font-size: 13px; color: var(--text);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none; max-width: 320px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 3px solid var(--green); }
+    #toast.error { border-left: 3px solid var(--red); }
+
+    /* ── MODAL ── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 32px;
+      width: 420px; max-width: 95vw;
+      transform: scale(0.95); transition: transform 0.2s;
+    }
+    .modal-backdrop.open .modal { transform: scale(1); }
+    .modal h3 { font-family: var(--font-display); font-size: 20px; margin-bottom: 12px; }
+    .modal p { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.6; }
+    .modal .modal-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+    .modal .modal-label { font-size: 12px; color: var(--text3); }
+    .modal .modal-val { font-size: 13px; font-weight: 500; color: var(--text); }
+    .modal-ref input {
+      width: 100%; padding: 9px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: var(--font-body); font-size: 13px; margin-top: 6px;
+    }
+    .modal-ref input:focus { outline: none; border-color: var(--accent); }
+    .modal-ref label { font-size: 12px; color: var(--text3); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions button { flex: 1; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 500; }
+    .modal-cancel { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+    .modal-confirm-yes { background: var(--green); border: none; color: #000; }
+    .modal-confirm-no { background: var(--red); border: none; color: #fff; }
+
+    /* ── PAGINATION ── */
+    .pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+    .pagination span { font-size: 12px; color: var(--text3); }
+    .pag-btns { display: flex; gap: 6px; }
+    .pag-btn {
+      padding: 5px 12px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text2); cursor: pointer; font-size: 12px;
+      font-family: var(--font-body); transition: all 0.2s;
+    }
+    .pag-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .pag-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    @media (max-width: 640px) {
+      main { padding: 16px 12px; }
+      header { padding: 0 16px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .search-box { margin-left: 0; width: 100%; }
+      .search-box input { width: 100%; flex: 1; }
+      .filters { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- CONFIG OVERLAY -->
+<div id="config-overlay">
+  <div class="config-box">
+    <h1>Hirass Dons</h1>
+    <p>Configurez votre connexion Supabase pour commencer.</p>
+    <div class="field">
+      <label>Supabase URL</label>
+      <input id="input-url" type="text" placeholder="https://xxxx.supabase.co" />
+    </div>
+    <div class="field">
+      <label>Supabase Anon Key</label>
+      <input id="input-key" type="text" placeholder="eyJhbGciOi..." />
+    </div>
+    <button class="btn-primary" onclick="saveConfig()">Connexion →</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Hirass <span>Gestion des Dons</span></div>
+  <div class="header-right">
+    <div id="status-dot" title="Statut connexion"></div>
+    <button class="btn-icon" onclick="openConfig()">⚙ Config</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('dons')">💳 Dons</div>
+    <div class="tab" onclick="switchTab('users')">👥 Utilisateurs</div>
+  </div>
+
+  <!-- ═══ TAB: DONS ═══ -->
+  <div id="tab-dons">
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Contributeurs</div>
+        <div class="stat-value blue" id="stat-contributors">—</div>
+        <div class="stat-sub">donateurs uniques</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Montant Confirmé</div>
+        <div class="stat-value green" id="stat-confirmed">—</div>
+        <div class="stat-sub" id="stat-confirmed-count">— dons validés</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Montant En Attente</div>
+        <div class="stat-value yellow" id="stat-pending">—</div>
+        <div class="stat-sub" id="stat-pending-count">— dons pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Collecté</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-sub">tous statuts confondus</div>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all', this)">Tous</button>
+      <button class="filter-btn" onclick="setFilter('pending', this)">⏳ Pending</button>
+      <button class="filter-btn" onclick="setFilter('confirmed', this)">✅ Confirmé</button>
+      <button class="filter-btn" onclick="setFilter('rejected', this)">❌ Rejeté</button>
+      <div class="search-box">
+        <input id="search-input" type="text" placeholder="Recherche téléphone, ref..." oninput="onSearch()" />
+        <button class="refresh-btn" onclick="loadDonations()">↻ Actualiser</button>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Donateur</th>
+            <th>Téléphone</th>
+            <th>Montant</th>
+            <th>Statut Don</th>
+            <th>Transaction</th>
+            <th>Référence</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="donations-body">
+          <tr class="loading-row"><td colspan="8"><div class="spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="pag-info"></span>
+      <div class="pag-btns">
+        <button class="pag-btn" id="pag-prev" onclick="changePage(-1)">← Précédent</button>
+        <button class="pag-btn" id="pag-next" onclick="changePage(1)">Suivant →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: USERS ═══ -->
+  <div id="tab-users" style="display:none">
+    <div class="stats" style="margin-bottom:28px">
+      <div class="stat-card">
+        <div class="stat-label">Utilisateurs Enregistrés</div>
+        <div class="stat-value blue" id="stat-users">—</div>
+        <div class="stat-sub">comptes actifs</div>
+      </div>
+    </div>
+    <div class="section-title">Liste des Utilisateurs</div>
+    <div class="filters">
+      <div class="search-box" style="margin-left:0">
+        <input id="user-search" type="text" placeholder="Recherche nom, téléphone..." oninput="onUserSearch()" />
+        <button class="refresh-btn" onclick="loadUsers()">↻ Actualiser</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Téléphone</th>
+            <th>ID Utilisateur</th>
+            <th>Date d'inscription</th>
+          </tr>
+        </thead>
+        <tbody id="users-body">
+          <tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="upag-info"></span>
+      <div class="pag-btns">
+        <button class="pag-btn" id="upag-prev" onclick="changeUserPage(-1)">← Précédent</button>
+        <button class="pag-btn" id="upag-next" onclick="changeUserPage(1)">Suivant →</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- MODAL VALIDATE -->
+<div class="modal-backdrop" id="modal-validate">
+  <div class="modal">
+    <h3>✅ Valider le Don</h3>
+    <div class="modal-row"><span class="modal-label">Donateur</span><span class="modal-val" id="mv-name">—</span></div>
+    <div class="modal-row"><span class="modal-label">Montant</span><span class="modal-val" id="mv-amount">—</span></div>
+    <div class="modal-row"><span class="modal-label">Téléphone</span><span class="modal-val" id="mv-phone">—</span></div>
+    <div class="modal-ref">
+      <label>Référence de transaction (optionnel)</label>
+      <input type="text" id="mv-ref" placeholder="ex: MM2024XXXX" />
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-validate')">Annuler</button>
+      <button class="modal-confirm-yes" onclick="confirmValidate()">Confirmer →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REJECT -->
+<div class="modal-backdrop" id="modal-reject">
+  <div class="modal">
+    <h3>❌ Rejeter le Don</h3>
+    <p>Ce don sera marqué comme <strong>rejeté</strong>. Cette action peut être annulée en revalidant le don.</p>
+    <div class="modal-row"><span class="modal-label">Donateur</span><span class="modal-val" id="mr-name">—</span></div>
+    <div class="modal-row"><span class="modal-label">Montant</span><span class="modal-val" id="mr-amount">—</span></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('modal-reject')">Annuler</button>
+      <button class="modal-confirm-no" onclick="confirmReject()">Rejeter</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── STATE ──
+var sbClient = null;
+var currentFilter = 'all';
+var searchQuery = '';
+var userSearchQuery = '';
+var currentPage = 1;
+var currentUserPage = 1;
+var PAGE_SIZE = 20;
+var allDonations = [];
+var allUsers = [];
+var actionTarget = null;
+
+// ── CONFIG ──
+function saveConfig() {
+  var url = document.getElementById('input-url').value.trim();
+  var key = document.getElementById('input-key').value.trim();
+  if (!url || !key) return toast('Remplissez URL et clé Anon.', 'error');
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  initSupabase(url, key);
+}
+
+function openConfig() {
+  document.getElementById('config-overlay').classList.remove('hidden');
+}
+
+function initSupabase(url, key) {
+  try {
+    sbClient = window.supabase.createClient(url, key);
+    document.getElementById('config-overlay').classList.add('hidden');
+    document.getElementById('status-dot').classList.add('connected');
+    toast('Connexion Supabase établie ✓', 'success');
+    loadAll();
+  } catch(e) {
+    toast('Erreur de connexion: ' + e.message, 'error');
+  }
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('tab-dons').style.display = tab === 'dons' ? '' : 'none';
+  document.getElementById('tab-users').style.display = tab === 'users' ? '' : 'none';
+  event.target.classList.add('active');
+  if (tab === 'users' && allUsers.length === 0) loadUsers();
+}
+
+// ── LOAD ALL ──
+async function loadAll() {
+  await Promise.all([loadDonations(), loadUsers()]);
+}
+
+// ── DONATIONS ──
+async function loadDonations() {
+  if (!sbClient) return;
+  document.getElementById('donations-body').innerHTML =
+    '<tr class="loading-row"><td colspan="8"><div class="spinner"></div></td></tr>';
+  var _res = await sbClient.from('donations').select('*').order('created_at', { ascending: false });
+  if (_res.error) return toast('Erreur chargement dons: ' + _res.error.message, 'error');
+  allDonations = _res.data || [];
+  computeStats(allDonations);
+  renderDonations();
+}
+
+function computeStats(data) {
+  var contributors = new Set(data.map(function(d) { return d.user_id; })).size;
+  var confirmed = data.filter(function(d) { return d.status === 'confirmed'; });
+  var pending = data.filter(function(d) { return d.status === 'pending'; });
+  function fmt(n) { return n.toLocaleString('fr-MG') + ' Ar'; }
+  document.getElementById('stat-contributors').textContent = contributors;
+  document.getElementById('stat-confirmed').textContent = fmt(confirmed.reduce(function(s,d){ return s+Number(d.amount); }, 0));
+  document.getElementById('stat-confirmed-count').textContent = confirmed.length + ' dons validés';
+  document.getElementById('stat-pending').textContent = fmt(pending.reduce(function(s,d){ return s+Number(d.amount); }, 0));
+  document.getElementById('stat-pending-count').textContent = pending.length + ' dons pending';
+  document.getElementById('stat-total').textContent = fmt(data.reduce(function(s,d){ return s+Number(d.amount); }, 0));
+}
+
+function getFiltered() {
+  return allDonations.filter(function(d) {
+    var matchStatus = currentFilter === 'all' || d.status === currentFilter;
+    var q = searchQuery.toLowerCase();
+    var matchSearch = !q || (d.phone_number||'').includes(q) ||
+      (d.transaction_reference||'').toLowerCase().includes(q) ||
+      (d.user_id||'').toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+}
+
+function renderDonations() {
+  var filtered = getFiltered();
+  var total = filtered.length;
+  var start = (currentPage - 1) * PAGE_SIZE;
+  var page = filtered.slice(start, start + PAGE_SIZE);
+  var tbody = document.getElementById('donations-body');
+
+  if (page.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">📭</div><p>Aucun don trouvé</p></div></td></tr>';
+  } else {
+    tbody.innerHTML = page.map(function(d) {
+      var date = d.created_at ? new Date(d.created_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      var canAct = d.status === 'pending';
+      var safeD = JSON.stringify(d).replace(/'/g, '&#39;');
+      return '<tr>' +
+        '<td><div class="user-name">' + (d.user_id || '—') + '</div></td>' +
+        '<td>' + (d.phone_number || '—') + '</td>' +
+        '<td class="amount">' + Number(d.amount).toLocaleString('fr-MG') + ' Ar</td>' +
+        '<td>' + statusBadge(d.status) + '</td>' +
+        '<td>' + txBadge(d.transaction_status) + '</td>' +
+        '<td class="mono">' + (d.transaction_reference || '—') + '</td>' +
+        '<td style="white-space:nowrap;font-size:12px">' + date + '</td>' +
+        '<td><div class="actions">' +
+          '<button class="btn-validate ' + (!canAct?'btn-disabled':'') + '" ' + (!canAct?'disabled':'') + ' onclick="openValidate(\'' + d.id + '\')">✓ Valider</button>' +
+          '<button class="btn-reject ' + (d.status==='rejected'?'btn-disabled':'') + '" ' + (d.status==='rejected'?'disabled':'') + ' onclick="openReject(\'' + d.id + '\')">✕</button>' +
+        '</div></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('pag-info').textContent = total > 0 ? (start+1) + '–' + Math.min(start+PAGE_SIZE, total) + ' sur ' + total : '0 résultat';
+  document.getElementById('pag-prev').disabled = currentPage <= 1;
+  document.getElementById('pag-next').disabled = start + PAGE_SIZE >= total;
+}
+
+function statusBadge(s) {
+  var map = { pending: ['badge-pending','En attente'], confirmed: ['badge-confirmed','Confirmé'], rejected: ['badge-rejected','Rejeté'] };
+  var entry = map[s] || ['badge-pending', s];
+  return '<span class="badge ' + entry[0] + '">' + entry[1] + '</span>';
+}
+
+function txBadge(s) {
+  var map = { 'en cours': ['badge-encours','En cours'], 'succès': ['badge-succes','Succès'], 'annulé': ['badge-annule','Annulé'] };
+  var entry = map[s] || ['badge-encours', s];
+  return '<span class="badge ' + entry[0] + '">' + entry[1] + '</span>';
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  currentPage = 1;
+  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  el.classList.add('active');
+  renderDonations();
+}
+
+function onSearch() {
+  searchQuery = document.getElementById('search-input').value;
+  currentPage = 1;
+  renderDonations();
+}
+
+function changePage(dir) {
+  currentPage += dir;
+  renderDonations();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── USERS ──
+async function loadUsers() {
+  if (!sbClient) return;
+  document.getElementById('users-body').innerHTML =
+    '<tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr>';
+  var result = await sbClient.from('users_hirass').select('*').order('created_at', { ascending: false });
+  if (result.error) return toast('Erreur chargement utilisateurs: ' + result.error.message, 'error');
+  allUsers = result.data || [];
+  document.getElementById('stat-users').textContent = allUsers.length;
+  renderUsers();
+}
+
+function getFilteredUsers() {
+  var q = userSearchQuery.toLowerCase();
+  return allUsers.filter(function(u) {
+    return !q || (u.user_name||'').toLowerCase().includes(q) || (u.user_phone||'').includes(q) || (u.user_id||'').toLowerCase().includes(q);
+  });
+}
+
+function renderUsers() {
+  var filtered = getFilteredUsers();
+  var total = filtered.length;
+  var start = (currentUserPage - 1) * PAGE_SIZE;
+  var page = filtered.slice(start, start + PAGE_SIZE);
+  var tbody = document.getElementById('users-body');
+
+  if (page.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">👤</div><p>Aucun utilisateur trouvé</p></div></td></tr>';
+  } else {
+    tbody.innerHTML = page.map(function(u) {
+      var date = u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      return '<tr>' +
+        '<td><div class="user-name">' + (u.user_name || '—') + '</div></td>' +
+        '<td>' + (u.user_phone || '—') + '</td>' +
+        '<td class="mono">' + (u.user_id || '—') + '</td>' +
+        '<td style="font-size:12px">' + date + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+  document.getElementById('upag-info').textContent = total > 0 ? (start+1) + '–' + Math.min(start+PAGE_SIZE, total) + ' sur ' + total : '0 résultat';
+  document.getElementById('upag-prev').disabled = currentUserPage <= 1;
+  document.getElementById('upag-next').disabled = start + PAGE_SIZE >= total;
+}
+
+function onUserSearch() {
+  userSearchQuery = document.getElementById('user-search').value;
+  currentUserPage = 1;
+  renderUsers();
+}
+
+function changeUserPage(dir) {
+  currentUserPage += dir;
+  renderUsers();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── MODALS ──
+function openValidate(id) {
+  var d = allDonations.find(function(x) { return x.id === id; });
+  if (!d) return;
+  actionTarget = d;
+  document.getElementById('mv-name').textContent = d.user_id || '—';
+  document.getElementById('mv-amount').textContent = Number(d.amount).toLocaleString('fr-MG') + ' Ar';
+  document.getElementById('mv-phone').textContent = d.phone_number || '—';
+  document.getElementById('mv-ref').value = d.transaction_reference || '';
+  document.getElementById('modal-validate').classList.add('open');
+}
+
+function openReject(id) {
+  var d = allDonations.find(function(x) { return x.id === id; });
+  if (!d) return;
+  actionTarget = d;
+  document.getElementById('mr-name').textContent = d.user_id || '—';
+  document.getElementById('mr-amount').textContent = Number(d.amount).toLocaleString('fr-MG') + ' Ar';
+  document.getElementById('modal-reject').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  actionTarget = null;
+}
+
+async function confirmValidate() {
+  if (!actionTarget) return;
+  var ref = document.getElementById('mv-ref').value.trim() || actionTarget.transaction_reference;
+  var update = { status: 'confirmed', synced: true };
+  if (ref) update.transaction_reference = ref;
+  var result = await sbClient.from('donations').update(update).eq('id', actionTarget.id);
+  closeModal('modal-validate');
+  if (result.error) return toast('Erreur: ' + result.error.message, 'error');
+  toast('Don validé avec succès ✓', 'success');
+  loadDonations();
+}
+
+async function confirmReject() {
+  if (!actionTarget) return;
+  var result = await sbClient.from('donations').update({ status: 'rejected' }).eq('id', actionTarget.id);
+  closeModal('modal-reject');
+  if (result.error) return toast('Erreur: ' + result.error.message, 'error');
+  toast('Don rejeté.', 'error');
+  loadDonations();
+}
+
+// ── TOAST ──
+var toastTimer;
+function toast(msg, type) {
+  type = type || 'success';
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { el.classList.remove('show'); }, 3200);
+}
+
+// ── INIT ──
+window.addEventListener('load', function() {
+  var url = localStorage.getItem('sb_url');
+  var key = localStorage.getItem('sb_key');
+  if (url && key) {
+    document.getElementById('input-url').value = url;
+    document.getElementById('input-key').value = key;
+    initSupabase(url, key);
+  }
+
+  // Close modals on backdrop click
+  document.querySelectorAll('.modal-backdrop').forEach(function(el) {
+    el.addEventListener('click', function(e) { if (e.target === el) closeModal(el.id); });
+  });
+});
+</script>
+</body>
+</html>
