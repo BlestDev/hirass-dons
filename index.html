@@ -355,6 +355,11 @@
         <div class="stat-sub" id="stat-pending-count">— dons pending</div>
       </div>
       <div class="stat-card">
+        <div class="stat-label">Montant Rejeté</div>
+        <div class="stat-value" style="color:var(--red)" id="stat-rejected">—</div>
+        <div class="stat-sub" id="stat-rejected-count">— dons rejetés</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-label">Total Collecté</div>
         <div class="stat-value" id="stat-total">—</div>
         <div class="stat-sub">tous statuts confondus</div>
@@ -547,12 +552,15 @@ function computeStats(data) {
   var contributors = new Set(data.map(function(d) { return d.user_id; })).size;
   var confirmed = data.filter(function(d) { return d.status === 'confirmed'; });
   var pending = data.filter(function(d) { return d.status === 'pending'; });
+  var rejected = data.filter(function(d) { return d.status === 'rejected'; });
   function fmt(n) { return n.toLocaleString('fr-MG') + ' Ar'; }
   document.getElementById('stat-contributors').textContent = contributors;
   document.getElementById('stat-confirmed').textContent = fmt(confirmed.reduce(function(s,d){ return s+Number(d.amount); }, 0));
   document.getElementById('stat-confirmed-count').textContent = confirmed.length + ' dons validés';
   document.getElementById('stat-pending').textContent = fmt(pending.reduce(function(s,d){ return s+Number(d.amount); }, 0));
   document.getElementById('stat-pending-count').textContent = pending.length + ' dons pending';
+  document.getElementById('stat-rejected').textContent = fmt(rejected.reduce(function(s,d){ return s+Number(d.amount); }, 0));
+  document.getElementById('stat-rejected-count').textContent = rejected.length + ' dons rejetés';
   document.getElementById('stat-total').textContent = fmt(data.reduce(function(s,d){ return s+Number(d.amount); }, 0));
 }
 
