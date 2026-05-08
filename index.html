@@ -672,7 +672,15 @@ function renderUsers() {
     tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">👤</div><p>Aucun utilisateur trouvé</p></div></td></tr>';
   } else {
     tbody.innerHTML = page.map(function(u) {
-      var date = u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      var date = u.created_at
+  ? new Date(u.created_at).toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  : '—';
       return '<tr>' +
         '<td><div class="user-name">' + (u.user_name || '—') + '</div></td>' +
         '<td>' + (u.user_phone || '—') + '</td>' +
